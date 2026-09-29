@@ -1,0 +1,66 @@
+export enum Role {
+  VISITOR = 'VISITOR',
+  TRAINEE = 'TRAINEE',
+  TRAINER = 'TRAINER',
+  ADMIN = 'ADMIN',
+}
+
+export enum UserStatus {
+  PENDING = 'PENDING',
+  ACTIVE = 'ACTIVE',
+  REJECTED = 'REJECTED',
+  DEACTIVATED = 'DEACTIVATED',
+}
+
+export enum CourseStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED = 'SUBMITTED',
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum EnrollmentStatus {
+  ENROLLED = 'ENROLLED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  DROPPED = 'DROPPED',
+}
+
+export enum AssessmentStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum AssessmentAttemptStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  SUBMITTED = 'SUBMITTED',
+  TIMED_OUT = 'TIMED_OUT',
+}
+
+export enum MediaVisibility {
+  PUBLIC = 'PUBLIC',
+  ENROLLED = 'ENROLLED',
+  PRIVATE = 'PRIVATE',
+}
+
+export enum MediaStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  READY = 'READY',
+  FAILED = 'FAILED',
+}
+
+export enum ResourceType {
+  RECORDED_LECTURE = 'RECORDED_LECTURE',
+  PRESENTATION = 'PRESENTATION',
+  STUDY_MATERIAL = 'STUDY_MATERIAL',
+  REFERENCE_DOCUMENT = 'REFERENCE_DOCUMENT',
+}
+
+export enum AnnouncementType {
+  NOTICE = 'NOTICE',
+  ACHIEVEMENT = 'ACHIEVEMENT',
+  NEW_CONTENT = 'NEW_CONTENT',
+}

@@ -1,0 +1,498 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  VISITOR
+  TRAINEE
+  TRAINER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  DEACTIVATED
+}
+
+enum CourseStatus {
+  DRAFT
+  SUBMITTED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum AssessmentAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+}
+
+enum MediaVisibility {
+  PUBLIC
+  ENROLLED
+  PRIVATE
+}
+
+enum MediaStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum AnnouncementType {
+  NOTICE
+  ACHIEVEMENT
+  NEW_CONTENT
+}
+
+model User {
+  id             String      @id @default(uuid())
+  googleSub      String      @unique @map("google_sub")
+  email          String      @unique
+  name           String
+  avatarUrl      String?     @map("avatar_url")
+  requestedRole  Role?       @map("requested_role")
+  role           Role?       // Nullable for new pending registrations
+  status         UserStatus  @default(PENDING)
+  department     String?
+  designation    String?
+  employeeId     String?     @map("employee_id")
+  phone          String?
+  lastLoginAt    DateTime?   @map("last_login_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  authIdentities  AuthIdentity[]
+  refreshTokens   RefreshToken[]
+  qualifications  Qualification[]
+  workExperiences WorkExperience[]
+  certificates    UserCertificate[]
+  userSkills      UserSkill[]
+  enrollments     CourseEnrollment[]
+  createdCourses  Course[]          @relation("CourseInstructor")
+  attempts        AssessmentAttempt[]
+  feedbacks       Feedback[]        @relation("FeedbackAuthor")
+  trainerFeedbacks Feedback[]       @relation("FeedbackTrainer")
+  libraryItems    LibraryItem[]     @relation("TrainerLibrary")
+  auditLogs       AuditLog[]
+
+  @@map("users")
+  @@index([email])
+  @@index([status])
+  @@index([role])
+}
+
+model AuthIdentity {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // e.g. "google"
+  providerUserId String   @map("provider_user_id") // google sub
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, providerUserId])
+  @@map("auth_identities")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  tokenHash   String   @map("token_hash")
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRevoked   Boolean  @default(false) @map("is_revoked")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+  @@index([tokenHash])
+  @@index([userId])
+}
+
+model Qualification {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  degree      String   // B.Sc, M.Sc, Ph.D, B.Tech
+  field       String   // Meteorology, Atmospheric Science, Physics, CS
+  institution String
+  year        Int
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("qualifications")
+}
+
+model WorkExperience {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String    // Meteorologist Gr. II, Director
+  organization String    @default("India Meteorological Department")
+  startYear    Int       @map("start_year")
+  endYear      Int?      @map("end_year") // Null if currently working
+  description  String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("work_experiences")
+}
+
+model UserCertificate {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  issuingBody  String   @map("issuing_body") // WMO, IMD, IMD-Pune
+  issueYear    Int      @map("issue_year")
+  fileUrl      String   @map("file_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("user_certificates")
+}
+
+model SkillTaxonomy {
+  id          String          @id @default(uuid())
+  name        String          @unique // e.g. NWP Modeling, Radar Interpretation
+  category    String          // e.g. Operational Meteorology, Instrumentation
+  parentId    String?         @map("parent_id")
+  parent      SkillTaxonomy?  @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children    SkillTaxonomy[] @relation("SkillHierarchy")
+  userSkills  UserSkill[]
+  courseMappings CourseCompetency[]
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  @@map("skill_taxonomies")
+}
+
+model UserSkill {
+  id          String        @id @default(uuid())
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId     String        @map("skill_id")
+  skill       SkillTaxonomy @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  proficiency Int           @default(1) // 1 to 5 scale
+  targetProficiency Int?    @map("target_proficiency") // Role/assignment target, 1 to 5 scale
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@unique([userId, skillId])
+  @@map("user_skills")
+}
+
+model Subject {
+  id          String       @id @default(uuid())
+  name        String       @unique // e.g. Tropical Meteorology, NWP, Radar
+  code        String       @unique // e.g. MET-101
+  description String?
+  courses     Course[]
+  assessments Questionnaire[]
+  resources   LibraryItem[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("subjects")
+}
+
+model Course {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  subjectId    String        @map("subject_id")
+  subject      Subject       @relation(fields: [subjectId], references: [id])
+  level        String        @default("BEGINNER")
+  durationMins Int           @default(0) @map("duration_mins")
+  prerequisites String[]     @default([])
+  learningObjectives String[] @default([]) @map("learning_objectives")
+  status       CourseStatus  @default(DRAFT)
+  capacity     Int           @default(100)
+  thumbnailUrl String?       @map("thumbnail_url")
+  instructorId String        @map("instructor_id")
+  instructor   User          @relation("CourseInstructor", fields: [instructorId], references: [id])
+  modules      CourseModule[]
+  competencies CourseCompetency[]
+  resources    LibraryItem[]
+  questionnaires Questionnaire[]
+  enrollments  CourseEnrollment[]
+  feedbacks    Feedback[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("courses")
+}
+
+model CourseCompetency {
+  courseId     String        @map("course_id")
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  competencyId String        @map("competency_id")
+  competency   SkillTaxonomy @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  targetLevel  Int           @map("target_level") // Proficiency expected after completing this course (1-5)
+
+  @@id([courseId, competencyId])
+  @@map("course_competencies")
+}
+
+model CourseModule {
+  id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int      @default(0)
+  lessons     Lesson[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("course_modules")
+}
+
+model Lesson {
+  id            String    @id @default(uuid())
+  moduleId      String    @map("module_id")
+  module        CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title         String
+  content       String?
+  mediaUrl      String?   @map("media_url")
+  dripDays      Int       @default(0) @map("drip_days") // Drip release: unlock N days after enrollment
+  durationMins  Int       @default(0) @map("duration_mins")
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("lessons")
+}
+
+model CourseEnrollment {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId     String           @map("course_id")
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status       EnrollmentStatus @default(ENROLLED)
+  progress     Float            @default(0.0)
+  lessonProgress Json?          @map("lesson_progress") // Array of completed lesson IDs
+  completedAt  DateTime?        @map("completed_at")
+  certificate  IssuedCertificate?
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@unique([userId, courseId])
+  @@map("course_enrollments")
+}
+
+model LibraryItem {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  subjectId   String?         @map("subject_id")
+  subject     Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  courseId    String?         @map("course_id")
+  course      Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  resourceType ResourceType   @default(STUDY_MATERIAL) @map("resource_type")
+  tags        String[]
+  fileKey     String          @map("file_key")
+  hlsUrl      String?         @map("hls_url")
+  thumbnailUrl String?        @map("thumbnail_url")
+  visibility  MediaVisibility @default(PUBLIC)
+  status      MediaStatus     @default(PENDING)
+  fileSize    Int?            @map("file_size")
+  mimeType    String?         @map("mime_type")
+  trainerId   String          @map("trainer_id")
+  trainer     User            @relation("TrainerLibrary", fields: [trainerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("library_items")
+}
+
+enum ResourceType {
+  RECORDED_LECTURE
+  PRESENTATION
+  STUDY_MATERIAL
+  REFERENCE_DOCUMENT
+}
+
+model Questionnaire {
+  id              String            @id @default(uuid())
+  title           String
+  subjectId       String            @map("subject_id")
+  subject         Subject           @relation(fields: [subjectId], references: [id])
+  courseId        String?           @map("course_id")
+  course          Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  trainerId       String            @map("trainer_id")
+  startAt         DateTime?         @map("start_at")
+  deadline        DateTime?         @map("deadline")
+  durationMins    Int               @map("duration_mins")
+  passMark        Float             @default(60.0) @map("pass_mark")
+  negativeMarking Float             @default(0.0) @map("negative_marking") // e.g. 0.25 points deducted
+  status          AssessmentStatus  @default(PUBLISHED)
+  questions       Question[]
+  attempts        AssessmentAttempt[]
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@map("questionnaires")
+}
+
+model Question {
+  id              String         @id @default(uuid())
+  questionnaireId String         @map("questionnaire_id")
+  questionnaire   Questionnaire  @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  prompt          String
+  topicTag        String         @map("topic_tag") // e.g. Monsoon Dynamics, Radar Echo
+  difficulty      String         @default("MEDIUM") // EASY, MEDIUM, HARD
+  points          Float          @default(1.0)
+  options         Option[]
+  stats           QuestionStats?
+  answers         AttemptAnswer[]
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@map("questions")
+}
+
+model Option {
+  id         String   @id @default(uuid())
+  questionId String   @map("question_id")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  order      Int      @default(0)
+
+  @@map("options")
+}
+
+model QuestionStats {
+  id             String   @id @default(uuid())
+  questionId     String   @unique @map("question_id")
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  totalAttempts  Int      @default(0) @map("total_attempts")
+  correctAttempts Int     @default(0) @map("correct_attempts")
+  discrimination Float    @default(0.0) // Metric of discrimination
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("question_stats")
+}
+
+model AssessmentAttempt {
+  id              String                  @id @default(uuid())
+  questionnaireId String                  @map("questionnaire_id")
+  questionnaire   Questionnaire           @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  userId          String                  @map("user_id")
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt       DateTime                @default(now()) @map("started_at")
+  endsAt          DateTime                @map("ends_at")
+  submittedAt     DateTime?               @map("submitted_at")
+  status          AssessmentAttemptStatus @default(IN_PROGRESS)
+  score           Float?
+  isPassed        Boolean?                @map("is_passed")
+  answers         AttemptAnswer[]
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  @@map("assessment_attempts")
+}
+
+model AttemptAnswer {
+  id               String            @id @default(uuid())
+  attemptId        String            @map("attempt_id")
+  attempt          AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String            @map("question_id")
+  question         Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?           @map("selected_option_id")
+  isCorrect        Boolean?          @map("is_correct")
+  scoreAwarded     Float?            @map("score_awarded")
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation("FeedbackAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String   @map("course_id")
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  trainerId String?  @map("trainer_id")
+  trainer   User?    @relation("FeedbackTrainer", fields: [trainerId], references: [id], onDelete: SetNull)
+  rating    Int      // 1 to 5
+  comments  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, courseId])
+  @@map("feedbacks")
+}
+
+model IssuedCertificate {
+  id            String           @id @default(uuid())
+  serialNumber  String           @unique @map("serial_number")
+  verifyHash    String           @unique @map("verify_hash")
+  enrollmentId  String           @unique @map("enrollment_id")
+  enrollment    CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  recipientName String           @map("recipient_name")
+  courseTitle   String           @map("course_title")
+  issueDate     DateTime         @default(now()) @map("issue_date")
+  qrCodeUrl     String           @map("qr_code_url")
+  pdfUrl        String?          @map("pdf_url")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  @@map("issued_certificates")
+}
+
+model Announcement {
+  id        String           @id @default(uuid())
+  title     String
+  content   String
+  type      AnnouncementType @default(NOTICE)
+  publishAt DateTime         @default(now()) @map("publish_at")
+  expireAt  DateTime?        @map("expire_at")
+  pinned    Boolean          @default(false)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@map("announcements")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model AiInteraction {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String   // TUTOR_QUERY, QUESTION_GENERATION, TRANSCRIPTION
+  courseId  String?  @map("course_id")
+  prompt    String
+  response  String
+  citations Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ai_interactions")
+}

@@ -1,0 +1,19 @@
+{
+  "name": "capacity-connect",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@capacity-connect/shared && npm run build --workspace=@capacity-connect/api && npm run build --workspace=@capacity-connect/web",
+    "start:api": "npm run start:dev --workspace=apps/api",
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "test": "npm run build --workspace=@capacity-connect/shared && npm run test --workspace=@capacity-connect/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
